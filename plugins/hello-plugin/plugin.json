@@ -1,11 +1,27 @@
 {
-  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "hello-plugin",
-  "version": "1.0.0",
-  "description": "Minimal example plugin: a single manifest and a single skill.",
-  "author": {
-    "name": "Karl Løland"
-  },
-  "license": "MIT",
-  "keywords": ["example", "minimal", "getting-started"]
+    "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+    "name": "hello-plugin",
+    "version": "1.0.0",
+    "description": "Minimal example plugin: a single manifest and a single skill.",
+    "author": {
+        "name": "Karl Løland"
+    },
+    "license": "MIT",
+    "keywords": [
+        "example",
+        "minimal",
+        "getting-started"
+    ],
+    "extensions": {
+        "com.akerbp.marketplace": {
+            "skills": {
+                "tnav": {
+                    "repo": "ETroll/temp-skill-repo",
+                    "source": "demoskill",
+                    "dest": "skills/greet",
+                    "ref": "3d182e4"
+                }
+            }
+        }
+    }
 }

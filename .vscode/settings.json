@@ -1,0 +1,16 @@
+{
+    "files.exclude": {
+        "**/.git": false,
+        "**/.svn": false,
+        "**/.hg": false,
+        "**/__pycache__": false,
+        "**/.*": false,
+        "**/*.egg-info": false,
+        "**/*.tfstate": false,
+        "**/*.tfstate.backup": false,
+        "**/bin": false,
+        "**/obj": false,
+        "**/zig-cache": false,
+        "**/zig-out": false
+    }
+}

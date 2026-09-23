@@ -1,0 +1,69 @@
+name: "Sync registry skills into Agent Plugins"
+description: >
+  Reads skill references declared under extensions["com.akerbp.marketplace"].skills
+  in each plugin.json, copies the referenced source directory from the skill registry at the
+  pinned commit SHA into its dest (default skills/<name>/) in the plugin. Writes a lock
+  file under com.akerbp.marketplace/skills.lock.json and bumps the plugin version
+  when vendored content changes.
+
+inputs:
+  mode:
+    description: >
+      "sync" copies skills and updates lock files and versions.
+      "check" verifies that the working tree matches the manifests and lock files
+      without modifying anything (use on pull requests).
+    required: false
+    default: "sync"
+  plugins-glob:
+    description: Glob (relative to the repository root) matching plugin.json files.
+    required: false
+    default: "plugins/*/plugin.json"
+  registry-token:
+    description: >
+      Token with read access to the skill registry repository. A GitHub App token
+      or fine-grained PAT. Falls back to GITHUB_TOKEN, which only works if the
+      registry is in the same repository or is public.
+    required: false
+    default: ${{ github.token }}
+  namespace:
+    description: Extension namespace to read skill references from.
+    required: false
+    default: "com.akerbp.marketplace"
+  bump-version:
+    description: Bump the patch version in plugin.json when vendored content changes.
+    required: false
+    default: "true"
+  expand-refs:
+    description: >
+      Rewrite abbreviated commit SHAs in plugin.json to the full 40-character SHA
+      during sync, so the manifest is unambiguous once merged.
+    required: false
+    default: "true"
+  github-server:
+    description: Base URL of the GitHub instance hosting the registry.
+    required: false
+    default: "https://github.com"
+
+outputs:
+  changed:
+    description: "true if any plugin was modified in sync mode."
+    value: ${{ steps.sync.outputs.changed }}
+  changed-plugins:
+    description: Newline-separated list of plugin directories that were modified.
+    value: ${{ steps.sync.outputs.changed_plugins }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Sync skills
+      id: sync
+      shell: bash
+      env:
+        REGISTRY_TOKEN: ${{ inputs.registry-token }}
+        SKILL_SYNC_MODE: ${{ inputs.mode }}
+        SKILL_SYNC_GLOB: ${{ inputs.plugins-glob }}
+        SKILL_SYNC_NAMESPACE: ${{ inputs.namespace }}
+        SKILL_SYNC_BUMP: ${{ inputs.bump-version }}
+        SKILL_SYNC_EXPAND_REFS: ${{ inputs.expand-refs }}
+        SKILL_SYNC_SERVER: ${{ inputs.github-server }}
+      run: python3 "${{ github.action_path }}/sync_skills.py"
