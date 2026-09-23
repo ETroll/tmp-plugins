@@ -1,0 +1,4 @@
+{
+  "_comment": "Illustrative client extension directory only. 'com.example.client' is not a real client namespace — a real plugin would use the reverse-domain namespace of an actual client it targets, per Agent Plugins spec section 8.",
+  "hooks": []
+}

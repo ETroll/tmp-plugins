@@ -1,0 +1,17 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "weather-tools",
+  "version": "0.1.0",
+  "description": "Example plugin pairing a bundled stdio MCP server with a skill that explains how to use it.",
+  "author": {
+    "name": "Karl Løland",
+    "email": "karl@folia.no"
+  },
+  "license": "MIT",
+  "keywords": ["mcp", "weather", "example"],
+  "extensions": {
+    "com.example.client": {
+      "showInMenu": true
+    }
+  }
+}

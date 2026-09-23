@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "weather-server": {
+      "type": "stdio",
+      "command": "./bin/weather-server.sh",
+      "args": ["--cache-dir", "${PLUGIN_DATA}/cache"],
+      "env": {
+        "WEATHER_CONFIG": "${PLUGIN_ROOT}/config/weather.json"
+      },
+      "cwd": "${PLUGIN_ROOT}"
+    }
+  }
+}

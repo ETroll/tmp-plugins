@@ -1,0 +1,12 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "text-utils",
+  "version": "1.0.0",
+  "description": "Small collection of text-processing skills: word counting and case conversion.",
+  "author": {
+    "name": "Karl Løland",
+    "email": "karl@folia.no"
+  },
+  "license": "MIT",
+  "keywords": ["text", "utilities", "example"]
+}
