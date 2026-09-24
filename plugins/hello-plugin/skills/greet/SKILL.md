@@ -5,6 +5,8 @@ description: Greet the user by name and summarize what this plugin can help with
 
 # Greet
 
+This will be overriten!
+
 Greet the user warmly and briefly mention that this is an example plugin built to
 the Agent Plugins 1.0.0 standard.
 
