@@ -88,6 +88,11 @@ a plugin is added or changed.
   destinations in one plugin may nest inside each other.
 - A `dest` directly under `skills/` is loaded as a skill by the harness, so it must contain a
   `SKILL.md`, and if that file declares a `name` it must equal the destination folder name.
+  Looked up case-insensitively in the registry (`skill.md`, `Skill.md`, etc. are all accepted --
+  Windows contributors can't cleanly rename a file to change only its case), but always
+  normalized to exactly `SKILL.md` in the vendored copy, since harness discovery requires that
+  exact name. A commit with more than one case-variant of the file in the same directory is
+  rejected as ambiguous.
 - `dest` is owned by the reference: whatever is there is replaced by the registry version. To
   keep a plugin-own skill under that name, drop the reference.
 - Removing a reference, or changing its `dest`, removes the old copy on the next sync.
