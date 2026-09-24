@@ -1,9 +1,9 @@
 name: "Sync registry skills into Agent Plugins"
 description: >
-  Reads skill references declared under extensions["com.akerbp.marketplace"].skills
+  Reads skill references declared under extensions["com.akerbp.skillreposync"].skills
   in each plugin.json, copies the referenced source directory from the skill registry at the
   pinned commit SHA into its dest (default skills/<name>/) in the plugin. Writes a lock
-  file under com.akerbp.marketplace/skills.lock.json and bumps the plugin version
+  file under com.akerbp.skillreposync/skills.lock.json and bumps the plugin version
   when vendored content changes.
 
 inputs:
@@ -28,7 +28,7 @@ inputs:
   namespace:
     description: Extension namespace to read skill references from.
     required: false
-    default: "com.akerbp.marketplace"
+    default: "com.akerbp.skillreposync"
   bump-version:
     description: Bump the patch version in plugin.json when vendored content changes.
     required: false

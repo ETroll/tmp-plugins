@@ -13,7 +13,7 @@
         "getting-started"
     ],
     "extensions": {
-        "com.akerbp.marketplace": {
+        "com.akerbp.skillreposync": {
             "skills": {
                 "demoskill": {
                     "repo": "ETroll/temp-skill-repo",

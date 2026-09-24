@@ -19,11 +19,13 @@
 # main is branch-protected; the `check` job here is the required status check, so an
 # unsynced or hand-edited skill cannot be merged.
 #
-# Auth: a Personal Access Token (repo secret REGISTRY_PAT), not a GitHub App. A PAT
-# push still triggers workflows (only the automatic GITHUB_TOKEN is excluded from
-# that), so it preserves the property this design needs. If your org lets you register
-# a GitHub App, prefer that instead -- it isn't tied to a personal account and doesn't
-# expire on the same schedule a PAT does. See ../../README.md for the tradeoffs.
+# Auth: one GitHub App if configured (one token per owner's installation -- a single
+# call covers both repos when they share an owner, a second call only when the
+# registry doesn't), otherwise a separate PAT per side, since a PAT belongs to
+# whoever created it rather than to an owner. Whichever mechanism, it must not be
+# GITHUB_TOKEN: a push made with GITHUB_TOKEN deliberately does not trigger
+# workflows, which this design's "check waits for sync's push" property needs. See
+# ../../README.md for exact variable/secret names.
 name: Sync and check registry skills
 
 on:
@@ -52,12 +54,41 @@ jobs:
       group: sync-skills-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     steps:
-      # REGISTRY_PAT: a Personal Access Token (fine-grained recommended) with
-      # contents:write on this repository and read access to the registry repository.
+      # One GitHub App (SKILL_REGISTRY_APP_ID/KEY), installed on this repo and the
+      # registry repo. A single create-github-app-token call is scoped to one owner's
+      # installation, so when both repos share an owner -- the common case -- one call
+      # with both repo names in SKILL_REGISTRY_APP_REPOS covers both sides. Only set
+      # SKILL_REGISTRY_APP_OWNER (+ its repos below) when the registry lives under a
+      # *different* owner: that triggers a second call, reusing the same App identity,
+      # scoped to that owner's installation instead.
+      - name: Create App token
+        if: vars.SKILL_REGISTRY_APP_ID != ''
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.SKILL_REGISTRY_APP_ID }}
+          private-key: ${{ secrets.SKILL_REGISTRY_APP_KEY }}
+          repositories: ${{ vars.SKILL_REGISTRY_APP_REPOS || github.event.repository.name }}
+          permission-contents: write
+
+      # Cross-owner registry only: a second token from the same App, targeting the
+      # registry's own installation. Skipped whenever the registry is covered by the
+      # step above already.
+      - name: Create registry App token (different owner)
+        if: vars.SKILL_REGISTRY_APP_ID != '' && vars.SKILL_REGISTRY_APP_OWNER != '' && vars.SKILL_REGISTRY_APP_OWNER_REPOS != ''
+        id: registry-app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.SKILL_REGISTRY_APP_ID }}
+          private-key: ${{ secrets.SKILL_REGISTRY_APP_KEY }}
+          owner: ${{ vars.SKILL_REGISTRY_APP_OWNER }}
+          repositories: ${{ vars.SKILL_REGISTRY_APP_OWNER_REPOS }}
+          permission-contents: read
+
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
-          token: ${{ secrets.REGISTRY_PAT }}
+          token: ${{ steps.app-token.outputs.token || secrets.MARKETPLACE_PAT }}
           fetch-depth: 0
 
       - uses: AkerBP/skill-sync-action@v1
@@ -65,7 +96,7 @@ jobs:
         with:
           mode: sync
           plugins-glob: "plugins/*/plugin.json"
-          registry-token: ${{ secrets.REGISTRY_PAT }}
+          registry-token: ${{ steps.registry-app-token.outputs.token || steps.app-token.outputs.token || secrets.REGISTRY_PAT }}
 
       - name: Commit synced skills to the PR branch
         if: steps.sync.outputs.changed == 'true'

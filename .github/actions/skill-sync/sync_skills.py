@@ -39,7 +39,7 @@ from pathlib import Path
 
 MODE = os.environ.get("SKILL_SYNC_MODE", "sync").strip().lower()
 PLUGINS_GLOB = os.environ.get("SKILL_SYNC_GLOB", "plugins/*/plugin.json")
-NAMESPACE = os.environ.get("SKILL_SYNC_NAMESPACE", "com.akerbp.marketplace")
+NAMESPACE = os.environ.get("SKILL_SYNC_NAMESPACE", "com.akerbp.skillreposync")
 BUMP_VERSION = os.environ.get("SKILL_SYNC_BUMP", "true").strip().lower() == "true"
 SERVER = os.environ.get("SKILL_SYNC_SERVER", "https://github.com").rstrip("/")
 TOKEN = os.environ.get("REGISTRY_TOKEN") or os.environ.get("GITHUB_TOKEN") or ""
