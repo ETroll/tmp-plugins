@@ -1,0 +1,11 @@
+{
+  "skills": {
+    "demoskill": {
+      "repo": "ETroll/temp-skill-repo",
+      "source": "demoskill",
+      "dest": "skills/greet",
+      "ref": "3d182e414f6fec6ebe3a1fc93d21fc84922479ae",
+      "hash": "sha256:75b4087707c24e80c7f3af994374bf924d5b9a21077bf4fa38d8dd8e3acd94f7"
+    }
+  }
+}
