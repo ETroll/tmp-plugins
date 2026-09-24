@@ -15,7 +15,7 @@
     "extensions": {
         "com.akerbp.marketplace": {
             "skills": {
-                "tnav": {
+                "demoskill": {
                     "repo": "ETroll/temp-skill-repo",
                     "source": "demoskill",
                     "dest": "skills/greet",
