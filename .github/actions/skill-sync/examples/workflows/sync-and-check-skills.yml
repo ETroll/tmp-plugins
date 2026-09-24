@@ -1,0 +1,147 @@
+# Runs on every pull request that touches a plugin.
+#
+# Two sequential jobs instead of two independently-triggered workflows. Both fired at
+# once on the raw pull_request event, "check" would race "sync": it would read the tree
+# before sync had a chance to fetch, commit, and push, and would report a false "not
+# synced yet" failure on every fresh push -- even though sync goes on to fix it a few
+# seconds later. Chaining them with `needs` makes `check` wait for `sync` to finish
+# (including its push), then re-checks out the branch so it sees the state sync just
+# produced, rather than the state at trigger time.
+#
+# `check` is still not redundant with `sync` succeeding: `sync` is a side-effecting,
+# network-dependent step (fetch from the registry, write, commit, push) that can succeed
+# without anyone ever looking at the result. `check` is a read-only, idempotent
+# verification -- it never contacts the registry, it only compares the committed
+# manifest, lock file, and vendored files against each other -- so it is safe to trust as
+# the merge gate even if `sync` silently misbehaves (a failed push, a hand-edit applied
+# after sync ran, a manifest ref changed without a corresponding sync).
+#
+# main is branch-protected; the `check` job here is the required status check, so an
+# unsynced or hand-edited skill cannot be merged.
+#
+# Auth: one GitHub App if configured (one token per owner's installation -- a single
+# call covers both repos when they share an owner, a second call only when the
+# registry doesn't), otherwise a separate PAT per side, since a PAT belongs to
+# whoever created it rather than to an owner. Whichever mechanism, it must not be
+# GITHUB_TOKEN: a push made with GITHUB_TOKEN deliberately does not trigger
+# workflows, which this design's "check waits for sync's push" property needs. See
+# ../../README.md for exact variable/secret names.
+name: Sync and check registry skills
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "plugins/**"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    # Pushing back requires the PR branch to live in this repository, not a fork.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    # Scoped to this job, not the whole workflow: a superseded sync attempt (rapid
+    # pushes to the same PR) should be cancelled, since only the latest is worth
+    # committing. `check` must NOT share this group -- the sync job's own push creates
+    # a new pull_request:synchronize run in the same PR, and if `check` were covered by
+    # this concurrency group too, that new run would cancel the *previous* run's `check`
+    # job (needs/if: always() only govern skipping on a failed or skipped dependency,
+    # not an external cancellation). The previous run's check status would go missing
+    # instead of passing.
+    concurrency:
+      group: sync-skills-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      # One GitHub App (SKILL_REGISTRY_APP_ID/KEY), installed on this repo and the
+      # registry repo. A single create-github-app-token call is scoped to one owner's
+      # installation, so when both repos share an owner -- the common case -- one call
+      # with both repo names in SKILL_REGISTRY_APP_REPOS covers both sides. Only set
+      # SKILL_REGISTRY_APP_OWNER (+ its repos below) when the registry lives under a
+      # *different* owner: that triggers a second call, reusing the same App identity,
+      # scoped to that owner's installation instead.
+      - name: Create App token
+        if: vars.SKILL_REGISTRY_APP_ID != ''
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.SKILL_REGISTRY_APP_ID }}
+          private-key: ${{ secrets.SKILL_REGISTRY_APP_KEY }}
+          repositories: ${{ vars.SKILL_REGISTRY_APP_REPOS || github.event.repository.name }}
+          permission-contents: write
+
+      # Cross-owner registry only: a second token from the same App, targeting the
+      # registry's own installation. Skipped whenever the registry is covered by the
+      # step above already.
+      - name: Create registry App token (different owner)
+        if: vars.SKILL_REGISTRY_APP_ID != '' && vars.SKILL_REGISTRY_APP_OWNER != '' && vars.SKILL_REGISTRY_APP_OWNER_REPOS != ''
+        id: registry-app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.SKILL_REGISTRY_APP_ID }}
+          private-key: ${{ secrets.SKILL_REGISTRY_APP_KEY }}
+          owner: ${{ vars.SKILL_REGISTRY_APP_OWNER }}
+          repositories: ${{ vars.SKILL_REGISTRY_APP_OWNER_REPOS }}
+          permission-contents: read
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ steps.app-token.outputs.token || secrets.MARKETPLACE_PAT }}
+          fetch-depth: 0
+
+      - uses: AkerBP/skill-sync-action@v1
+        id: sync
+        with:
+          mode: sync
+          plugins-glob: "plugins/*/plugin.json"
+          registry-token: ${{ steps.registry-app-token.outputs.token || steps.app-token.outputs.token || secrets.REGISTRY_PAT }}
+
+      - name: Commit synced skills to the PR branch
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          # "append" adds a commit; "amend" folds the sync into the PR's last commit
+          # and force-pushes. Append keeps the contributor's history intact and is
+          # the safer default.
+          COMMIT_MODE: append
+        run: |
+          git config user.name "akerbp-skill-sync[bot]"
+          git config user.email "akerbp-skill-sync[bot]@users.noreply.github.com"
+          git add -A plugins
+          if [ "$COMMIT_MODE" = "amend" ]; then
+            git commit --amend --no-edit
+            git push --force-with-lease origin HEAD:${{ github.event.pull_request.head.ref }}
+          else
+            git commit -m "chore: sync registry skills"$'\n\n'"${{ steps.sync.outputs.changed-plugins }}"
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          fi
+
+  check:
+    needs: sync
+    # Run whether sync succeeded, failed, or was skipped (fork PR): a required check
+    # must always produce a real pass/fail, never end up skipped, or branch protection
+    # could treat the missing status as non-blocking.
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # Same-repo PR: fetch the branch by name so we see the commit `sync` just pushed,
+      # not the tree as it was when this workflow was triggered.
+      - name: Checkout PR branch
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      # Fork PR: sync never runs (it can't push), so there is no newer commit to wait
+      # for. Fall back to the default pull_request checkout.
+      - name: Checkout PR merge ref
+        if: github.event.pull_request.head.repo.full_name != github.repository
+        uses: actions/checkout@v4
+
+      - uses: AkerBP/skill-sync-action@v1
+        with:
+          mode: check
+          plugins-glob: "plugins/*/plugin.json"

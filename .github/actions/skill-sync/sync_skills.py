@@ -39,7 +39,7 @@ from pathlib import Path
 
 MODE = os.environ.get("SKILL_SYNC_MODE", "sync").strip().lower()
 PLUGINS_GLOB = os.environ.get("SKILL_SYNC_GLOB", "plugins/*/plugin.json")
-NAMESPACE = os.environ.get("SKILL_SYNC_NAMESPACE", "com.akerbp.marketplace")
+NAMESPACE = os.environ.get("SKILL_SYNC_NAMESPACE", "com.akerbp.skillreposync")
 BUMP_VERSION = os.environ.get("SKILL_SYNC_BUMP", "true").strip().lower() == "true"
 SERVER = os.environ.get("SKILL_SYNC_SERVER", "https://github.com").rstrip("/")
 TOKEN = os.environ.get("REGISTRY_TOKEN") or os.environ.get("GITHUB_TOKEN") or ""
@@ -124,6 +124,28 @@ def assert_no_symlinks(directory: Path) -> None:
     for p in directory.rglob("*"):
         if p.is_symlink():
             raise SyncError(f"symlink found in vendored skill: {p}")
+
+
+def find_skill_md(directory: Path) -> Path | None:
+    """Find SKILL.md directly inside directory, tolerating case.
+
+    Registry contributors on Windows commit through a case-insensitive,
+    case-preserving filesystem: once a file lands as skill.md, renaming it to
+    SKILL.md case-only is awkward there (it needs a two-step rename through a
+    temporary name for git to see it as a change). So the *source* lookup here
+    is case-insensitive. The vendored copy is still normalized to exactly
+    SKILL.md by the caller, because harness discovery requires that exact name
+    (Agent Plugins spec: a path "named exactly SKILL.md").
+    """
+    # Always scan for every case-variant first -- an early exact-match shortcut would let
+    # SKILL.md and a stray skill.md coexist undetected, defeating the ambiguity check below.
+    matches = [p for p in directory.iterdir() if p.is_file() and p.name.lower() == "skill.md"]
+    if len(matches) > 1:
+        raise SyncError(
+            f"{directory}: multiple files match SKILL.md case-insensitively: "
+            f"{', '.join(sorted(m.name for m in matches))}"
+        )
+    return matches[0] if matches else None
 
 
 def parse_skill_name(skill_md: Path) -> str | None:
@@ -429,9 +451,15 @@ def process_plugin(manifest_path: Path) -> bool:
             # Only a directory placed directly under skills/ is loaded as a skill by the
             # harness, so only there do we require a SKILL.md whose name matches the folder.
             if is_skill_dest(dest):
-                skill_md = staged / "SKILL.md"
-                if not skill_md.is_file():
+                skill_md = find_skill_md(staged)
+                if skill_md is None:
                     raise SyncError(f"{plugin_dir}: {spec['repo']}:{spec['source']} has no SKILL.md")
+                if skill_md.name != "SKILL.md":
+                    notice(
+                        f"{plugin_dir}: {spec['repo']}:{spec['source']} has {skill_md.name!r}; "
+                        "normalized to SKILL.md in the vendored copy"
+                    )
+                    skill_md = skill_md.rename(skill_md.with_name("SKILL.md"))
                 declared = parse_skill_name(skill_md)
                 folder = Path(dest).name
                 if declared and declared != folder:
