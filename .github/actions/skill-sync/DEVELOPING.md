@@ -48,6 +48,10 @@ Then it branches:
 - **`actions/create-github-app-token@v1` has no aggregate `permissions:` input.** It's
   per-resource: `permission-contents: write`, etc. A made-up aggregate key is silently ignored,
   so the token ends up with the installation's full permissions instead of the intended cap.
+- **Renaming the `namespace` input orphans the old `<plugin>/<old-namespace>/` directory.**
+  `process_plugin` only ever looks at the *current* `NAMESPACE`, so it has no way to know a
+  differently-named directory is leftover state from a previous config — it's neither cleaned up
+  nor flagged by either mode. Delete it by hand after a namespace rename.
 
 ## Testing locally
 
